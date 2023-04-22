@@ -226,7 +226,7 @@ void loop()
 
   //Printing The measured values as a CSV file,  
   //Time, Acceleration x direct, distance to object
-  Serial.print(millis()); Serial.print(",");Serial.print( IMURead.Measurements.at(0).AccX); Serial.print(","); Serial.println(DistToOjbect);  
+  Serial.print(millis()); Serial.print(",");Serial.print( IMURead.Measurements.at(0).AccX); Serial.print( IMURead.Measurements.at(0).AccY); Serial.print( IMURead.Measurements.at(0).AccZ); Serial.print(","); Serial.println(DistToOjbect);  
   
   float position {50}; 
   float velocity {2}; 
