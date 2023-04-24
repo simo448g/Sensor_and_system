@@ -30,11 +30,10 @@ class HCSR04US
     digitalWrite(PinUS.trig, HIGH);
     delayMicroseconds(10);
     digitalWrite(PinUS.trig, LOW);
-    unsigned long time = millis();
-
+  
     // Use the pulsein command to see how long it takes for the pulse to bounce back to the sensor.
     float echoTime = pulseIn(PinUS.echo, HIGH,30*1000);     
-    Serial.print("Sensor Time: ");Serial.println(millis()-time);  
+    
 
     // Calculate the distance of the object that reflected the pulse (half the bounce time multiplied by the speed of sound).
     return(echoTime*timeToDistance ); //Regner afstand til et objekt i meter! 
@@ -47,45 +46,7 @@ class HCSR04US
 
 HCSR04US DistMeas; 
 
-/*
-class IMUReader
-{
-  public:
-    IMUReader() = default;
 
-    struct   //Laver "En datatype" til alle ens målingerne
-    {
-          float X { 0 };
-          float Y { 0 };
-          float Z { 0 };
-    }Acc;
-
-    void GetIMUMeasurement() //Laver en måling og tilføje dem til et array
-    {
-      
-        //Getting measurements from the accelerometer and gyropscope
-        if (IMU.accelerationAvailable()) 
-        {
-          IMU.readAcceleration(Acc.X, Acc.Y, Acc.Z);
-        }       
-    }
-
-private:
-
-};
-
-
-IMUReader IMURead;  //Initalizers ens klasse til måling af data fra 
-//AccGyroMeasurement  ;
-*/
-
-
-
-//The next class gives the possiablity of changing the sample rate for the IMU!, here it is chosen to change the sample rate to 13 Hz
-/* This "trick" is called inheritance. We make a new class that inherits everything from the old class.
-   We can then add additional functionality to the new class. In this case, we add four functions to
-   add the ability to change the sampling rate for the gyro and accelerometer.
-*/
 
 struct
 {
@@ -131,17 +92,17 @@ IMUExtended myIMU{Wire,LSM6DS3_ADDRESS};
 
 void setup() 
 {
-  Serial.begin(115200);
+  Serial.begin(500000);
   while (!Serial);
 
 // Starting up/connecting to the IMU
-  if (!IMU.begin()) 
+  if (!myIMU.begin()) 
   {
     Serial.println("Failed to initialize IMU! Halting.");
 
     while (1);
   }
-  myIMU.SetAccGyroRate13Hz();
+  myIMU.SetAccGyroRate26Hz();
 
 }
 
@@ -153,9 +114,9 @@ void loop()
   
 
   
-  if (IMU.accelerationAvailable()) 
+  if (myIMU.accelerationAvailable()) 
   {
-    IMU.readAcceleration(Acc.X, Acc.Y, Acc.Z);
+    myIMU.readAcceleration(Acc.X, Acc.Y, Acc.Z);
   }
   else
   {
@@ -177,7 +138,5 @@ void loop()
   //Calculation the neccesary time to wait, to obtain a sampling frequency of 13 Hz, (and appling the delay ;D)
   signed long delayTime=samplingTime-(millis()-StartTimeLoop);
   if(delayTime>0) delay(delayTime);
-  Serial.print("Delay time: ");Serial.println(delayTime);
-  delay(delayTime);
  
 }
