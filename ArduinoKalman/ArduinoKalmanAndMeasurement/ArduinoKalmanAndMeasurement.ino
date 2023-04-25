@@ -6,13 +6,17 @@
 
 #include <BasicLinearAlgebra.h>
 
+#include <Wire.h>
+#include <Adafruit_GFX.h>
+#include <Adafruit_SSD1306.h>
+
 
 
 constexpr struct
 {
   size_t echo{2};
   size_t trig{3};
-}PinUS;
+}PinUS;             //Ultrasonic sensor
 
 float Ts {77.f}; // Time between sample should be taken in ms. 
 float Tss=Ts/1000;
@@ -27,62 +31,55 @@ class KalmanFilter
   {
     this->Phi = Phi;
   }
-
   void setH(BLA::Matrix<n_output,n_states>H)
   {
     this->H = H;
   }
-
   void setK(BLA::Matrix<n_states,n_output>K)
   {
     this->K = K;
   }
-
   void setMeasurements(BLA::Matrix<n_output>y)
   {
     this->y=y;
+    filterUpToDate=false;
   }
-
   BLA::Matrix<n_states> getStateEstimate()
   {
     if(!filterUpToDate) filter();
     return(x_e);
   }
-
   BLA::Matrix<n_states> getStatePrediction()
   {
     if(!filterUpToDate) filter();
     return(x_p);
   }
-
   BLA::Matrix<n_output> getMeasurementPrediction()
   {
     return(H*x_p);
+  }
+
+  void filter()
+  {
+      y_e = H*x_p;
+      y_e = y - y_e;
+      x_e = x_p+K*y_e;
+      x_p= Phi*x_e;
+
+      filterUpToDate=true;
   }
 
   private: 
     BLA::Matrix<n_states> x_p{0};
     BLA::Matrix<n_states> x_e{0};
     BLA::Matrix<n_output> y_e{0};
-    BLA::Matrix<n_output> y_error{0};
     BLA::Matrix<n_output> y{0};
 
     BLA::Matrix<n_states,n_states>Phi{0};
     BLA::Matrix<n_output,n_states>H{0};
-
     BLA::Matrix<n_states,n_output>K{0};
 
     bool filterUpToDate{false};
-
-    void filter()
-    {
-      y_e = H*x_p;
-      y_error = y - y_e;
-      x_e = x_p+K*y_error;
-      x_p= Phi*x_e;
-
-      filterUpToDate=true;
-    }
 };
 
 KalmanFilter<4,2> HeighEstimator;
@@ -105,24 +102,20 @@ class HCSR04US
     delayMicroseconds(10);
     digitalWrite(PinUS.trig, LOW);
   
-    // Use the pulsein command to see how long it takes for the pulse to bounce back to the sensor.
-    float echoTime = pulseIn(PinUS.echo, HIGH,30*1000);     
+    float echoTime = pulseIn(PinUS.echo, HIGH,30*1000);  //[us] 
     
-
-    // Calculate the distance of the object that reflected the pulse (half the bounce time multiplied by the speed of sound).
-    return(echoTime*timeToDistance ); //Regner afstand til et objekt i meter! 
+    return(echoTime*timeToDistance ); //Calculate distance [m]
 
 }
-
   private:
-  float timeToDistance {170/1000.f};
+  float timeToDistance {170/1000000.f};  //speed of sound/2 /1 000 000us
 };
 
 HCSR04US DistMeas; 
 
 
 
-struct
+struct     
 {
   float X{0};
   float Y{0};
@@ -162,28 +155,46 @@ public:
 IMUExtended myIMU{Wire,LSM6DS3_ADDRESS};
 
 
+constexpr struct{
+  size_t width {128}; // OLED display width, in pixels
+  size_t height {32}; // OLED display height, in pixels
+  int OLED_RESET {-1};
+  size_t Address {0x3C};
+}Screen;
 
+Adafruit_SSD1306 display(Screen.width, Screen.height, &Wire, Screen.OLED_RESET);
 
 void setup() 
 {
   Serial.begin(500000);
   while (!Serial);
 
-// Starting up/connecting to the IMU
+  // Starting up/connecting to the IMU
   if (!myIMU.begin()) 
   {
     Serial.println("Failed to initialize IMU! Halting.");
-
-    while (1);
+    while (true);
   }
   myIMU.SetAccGyroRate26Hz();
 
+  if(!display.begin(SSD1306_SWITCHCAPVCC, Screen.Address)) 
+  {
+    Serial.println(F("SSD1306 allocation failed"));
+    while(true);
+  }
+
+  display.clearDisplay();
+  display.setTextSize(1);      
+  display.setTextColor(SSD1306_WHITE);
+  display.cp437(true);         // Use full 256 char 'Code Page 437' font
+  display.display();
+
   
-  BLA::Matrix<4,4> Phi={0.99,0,0,0, Tss,1,0,0, 0,Tss,1,0, 0,0,0,1};
+  BLA::Matrix<4,4> Phi={0.99,0,0,0, Tss,1,0,0, 0,Tss,1,0, 0,0,0,1};   //Setting parameters for Height estimator
   HeighEstimator.setPhi(Phi);
   BLA::Matrix<2,4> H ={1,0,0,1, 0,0,1,0};
   HeighEstimator.setH(H);
-  BLA::Matrix<4,2> K = {0.2, 1.18, 0.03,1.12, 0,0.36, 0,-0.07};
+  BLA::Matrix<4,2> K = {0.12, 2.74, 0.01,1.69, 0,0.43, 0.18,-2.49};
   HeighEstimator.setK(K);
 }
 
@@ -193,31 +204,33 @@ void loop()
   unsigned long StartTimeLoop=millis(); //Used to make a sampling time close to 13 Hz.
     
   
+  float distance = DistMeas.getDistance();   //Measure distance
+
   if (myIMU.accelerationAvailable()) 
   {
-    myIMU.readAcceleration(Acc.X, Acc.Y, Acc.Z);
+    myIMU.readAcceleration(Acc.X, Acc.Y, Acc.Z);  //Measure acceleration
   }
   else
   {
     Serial.println("Failed");
   }
 
-  float distance = DistMeas.getDistance()/1000;
 
 
-  BLA::Matrix<2> measurements{0};
-  BLA::Matrix<4> states{0};
+  BLA::Matrix<2> measurements{0};   //Inputs to Kalman Filter
   measurements(0)=Acc.X*9.82;
   measurements(1)=distance;
   HeighEstimator.setMeasurements(measurements);
+
+  BLA::Matrix<4>states{0};   //Outputs from Kalman filter
   states= HeighEstimator.getStateEstimate();
   float acc=states(0);
   float vel=states(1);
   float pos=states(2);
   float bia=states(3);
 
-  //Calculation the neccesary time to wait, to obtain a sampling frequency of 13 Hz, (and appling the delay ;D)
-  signed long delayTime=Ts-(millis()-StartTimeLoop);
+  
+  signed long delayTime=Ts-(millis()-StartTimeLoop);    //Calculate delay for 13 Hz sampling
   if(delayTime>0) delay(delayTime);
 
   Serial.print(millis()); 
@@ -239,5 +252,13 @@ void loop()
   Serial.print(bia); 
   Serial.print(", ");
   Serial.println(delayTime);
- 
+
+  display.clearDisplay();
+  display.setCursor(10, 0);     // Start at top-left corner
+  display.print("Height "); display.print(pos); display.print(" m");
+  display.setCursor(10, 10);     // Buttom/mid 
+  display.print("Vel "); display.print(vel); display.print(" m/s");
+  display.setCursor(10, 20);     // Buttom/mid 
+  display.print("acc "); display.print(acc); display.print(" m/s2");
+  display.display();             //Showing data from print 
 }
