@@ -33,26 +33,14 @@ class KalmanFilter
     this->H = H;
   }
 
-  void setR(BLA::Matrix<n_output,n_output>R)
-  {
-    this->R = R;
-  }
-
-  void setQ(BLA::Matrix<n_states,n_states>Q)
-  {
-    this->Q = Q;
-  }
-
   void setK(BLA::Matrix<n_states,n_output>K)
   {
     this->K = K;
   }
 
-
   void setMeasurements(BLA::Matrix<n_output>y)
   {
     this->y=y;
-    filterUpToDate=false;    
   }
 
   BLA::Matrix<n_states> getStateEstimate()
@@ -81,8 +69,6 @@ class KalmanFilter
 
     BLA::Matrix<n_states,n_states>Phi{0};
     BLA::Matrix<n_output,n_states>H{0};
-    BLA::Matrix<n_output,n_output>R{0};
-    BLA::Matrix<n_states,n_states>Q{0};
 
     BLA::Matrix<n_states,n_output>K{0};
 
@@ -197,12 +183,6 @@ void setup()
   HeighEstimator.setPhi(Phi);
   BLA::Matrix<2,4> H ={1,0,0,1, 0,0,1,0};
   HeighEstimator.setH(H);
-  BLA::Matrix<4,4> Q;
-  Q.Fill(0);
-  Q(0,0)=0.0018;
-  HeighEstimator.setQ(Q);
-  BLA::Matrix<2,2> R={0.03,0, 0,0.0000007};
-  HeighEstimator.setR(R);
   BLA::Matrix<4,2> K = {0.2, 1.18, 0.03,1.12, 0,0.36, 0,-0.07};
   HeighEstimator.setK(K);
 }
@@ -236,8 +216,10 @@ void loop()
   float pos=states(2);
   float bia=states(3);
 
+  //Calculation the neccesary time to wait, to obtain a sampling frequency of 13 Hz, (and appling the delay ;D)
+  signed long delayTime=Ts-(millis()-StartTimeLoop);
+  if(delayTime>0) delay(delayTime);
 
-  
   Serial.print(millis()); 
   Serial.print(", ");
   Serial.print( Acc.X*9.82); 
@@ -254,11 +236,8 @@ void loop()
   Serial.print(", ");
   Serial.print( pos); 
   Serial.print(", "); 
-  Serial.println(bia); 
-  
-
-  //Calculation the neccesary time to wait, to obtain a sampling frequency of 13 Hz, (and appling the delay ;D)
-  signed long delayTime=Ts-(millis()-StartTimeLoop);
-  if(delayTime>0) delay(delayTime);
+  Serial.print(bia); 
+  Serial.print(", ");
+  Serial.println(delayTime);
  
 }
