@@ -63,7 +63,7 @@ class KalmanFilter
   void filter()
   {
       y_e = H*x_p;
-      y_e = y - y_e;
+      y_e = y - y_e;    //Measurement prediction error.
       x_e = x_p+K*y_e;
       x_p= Phi*x_e;
 
