@@ -56,6 +56,7 @@ class KalmanFilter
   }
   BLA::Matrix<n_output> getMeasurementPrediction()
   {
+    if(!filterUpToDate) filter();
     return(H*x_p);
   }
 
@@ -229,9 +230,6 @@ void loop()
   float pos=states(2);
   float bia=states(3);
 
-  
-  signed long delayTime=Ts-(millis()-StartTimeLoop);    //Calculate delay for 13 Hz sampling
-  if(delayTime>0) delay(delayTime);
 
   Serial.print(millis()); 
   Serial.print(", ");
@@ -261,4 +259,7 @@ void loop()
   display.setCursor(10, 20);     // Buttom/mid 
   display.print("acc "); display.print(acc); display.print(" m/s2");
   display.display();             //Showing data from print 
+
+  signed long delayTime=Ts-(millis()-StartTimeLoop);    //Calculate delay for 13 Hz sampling
+  if(delayTime>0) delay(delayTime);
 }
