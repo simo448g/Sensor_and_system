@@ -41,6 +41,7 @@ class KalmanFilter
   }
   void setMeasurements(BLA::Matrix<n_output>y)
   {
+    if(!filterUpToDate) filter();
     this->y=y;
     filterUpToDate=false;
   }
